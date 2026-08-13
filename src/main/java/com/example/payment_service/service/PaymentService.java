@@ -27,24 +27,133 @@ public class PaymentService {
         System.out.println("Amount  : " + event.getTotalAmount());
         System.out.println("======================================");
 
+        // -----------------------------------------
+        // STEP 1: Simulate payment
+        // -----------------------------------------
+
+        boolean paymentSuccess = true;
+
+        if (!paymentSuccess) {
+
+            System.out.println("PAYMENT FAILED");
+
+            publishPaymentEvent(event, "FAILED");
+
+            return;
+        }
+
+        System.out.println("PAYMENT SUCCESSFUL");
+
+        // -----------------------------------------
+        // STEP 2: Simulate inventory reservation
+        // -----------------------------------------
+
+        System.out.println();
+        System.out.println("======================================");
+        System.out.println("INVENTORY RESERVATION STARTED");
+        System.out.println("OrderId : " + event.getOrderId());
+        System.out.println("======================================");
+
         /*
-         * Simulate payment processing.
+         * Saga simulation:
          *
-         * We are intentionally NOT integrating
-         * Stripe/PayPal/etc. yet.
+         * Every 5th order fails inventory.
+         *
+         * 81 -> SUCCESS
+         * 82 -> SUCCESS
+         * 83 -> SUCCESS
+         * 84 -> SUCCESS
+         * 85 -> FAILURE -> COMPENSATION
          */
 
-        String paymentStatus;
+        boolean inventorySuccess =
+                event.getOrderId() % 5 != 0;
 
-        if (event.getTotalAmount() != null
-                && event.getTotalAmount().signum() > 0) {
+        if (inventorySuccess) {
 
-            paymentStatus = "COMPLETED";
+            // -----------------------------------------
+            // STEP 3A: Inventory succeeded
+            // -----------------------------------------
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("INVENTORY RESERVATION SUCCESSFUL");
+            System.out.println("OrderId : " + event.getOrderId());
+            System.out.println("======================================");
+
+            publishPaymentEvent(event, "COMPLETED");
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("SAGA COMPLETED");
+            System.out.println("OrderId : " + event.getOrderId());
+            System.out.println("======================================");
 
         } else {
 
-            paymentStatus = "FAILED";
+            // -----------------------------------------
+            // STEP 3B: Inventory failed
+            // -----------------------------------------
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("INVENTORY RESERVATION FAILED");
+            System.out.println("OrderId : " + event.getOrderId());
+            System.out.println("======================================");
+
+            // -----------------------------------------
+            // STEP 4: Compensation
+            // -----------------------------------------
+
+            compensatePayment(event);
+
+            // Payment itself did NOT fail.
+            // Inventory failed after payment succeeded.
+            publishPaymentEvent(event, "INVENTORY_FAILED");
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("SAGA COMPENSATION COMPLETED");
+            System.out.println("OrderId : " + event.getOrderId());
+            System.out.println("======================================");
         }
+
+        System.out.println();
+        System.out.println("======================================");
+        System.out.println("PAYMENT PROCESSING FINISHED");
+        System.out.println("OrderId : " + event.getOrderId());
+        System.out.println("======================================");
+        System.out.println();
+    }
+
+    private void compensatePayment(OrderCreatedEvent event) {
+
+        System.out.println();
+        System.out.println("======================================");
+        System.out.println("SAGA COMPENSATION STARTED");
+        System.out.println("Refunding payment...");
+        System.out.println("OrderId : " + event.getOrderId());
+        System.out.println("======================================");
+
+        /*
+         * Simulate payment refund.
+         *
+         * In a real application this would call
+         * the payment provider to refund the payment.
+         */
+
+        System.out.println("PAYMENT REFUND SUCCESSFUL");
+
+        System.out.println();
+        System.out.println("======================================");
+        System.out.println("SAGA COMPENSATION FINISHED");
+        System.out.println("OrderId : " + event.getOrderId());
+        System.out.println("======================================");
+    }
+
+    private void publishPaymentEvent(
+            OrderCreatedEvent event,
+            String paymentStatus) {
 
         PaymentProcessedEvent paymentEvent =
                 new PaymentProcessedEvent(
@@ -61,11 +170,8 @@ public class PaymentService {
         paymentEventProducer.sendPaymentProcessedEvent(paymentEvent);
 
         System.out.println();
-        System.out.println("======================================");
-        System.out.println("PAYMENT PROCESSING FINISHED");
+        System.out.println("PAYMENT_PROCESSED published");
         System.out.println("OrderId       : " + event.getOrderId());
         System.out.println("PaymentStatus : " + paymentStatus);
-        System.out.println("======================================");
-        System.out.println();
     }
 }
